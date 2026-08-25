@@ -1,0 +1,26 @@
+name: ci
+on:
+  pull_request:
+    paths-ignore: ["docs/**"]
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**"]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      UV_TOOL_BIN_DIR: /usr/local/bin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { enable-cache: true }
+      - run: uv tool install rust-just
+      - run: time just sync
+      - run: time just check
+      - run: just verify

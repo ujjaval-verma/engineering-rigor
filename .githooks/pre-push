@@ -1,0 +1,59 @@
+#!/bin/sh
+# pre-push: a local backstop, not an authority. Two independent parts:
+#
+# 1. Tamper check. The WORKING-TREE blobs of the hook files, harness/guard-gate.sh,
+#    harness/gate.sh, justfile and .claude/settings.json must equal local HEAD's — i.e.
+#    "nobody edited the harness without committing it". It does NOT inspect the commits
+#    being pushed: a gutted gate that was *committed* passes here, and so does a gutted
+#    gate on a branch other than the checked-out one. Commit-level tampering is caught by
+#    code review and by CI (`just verify` in GitHub Actions), never by this hook.
+# 2. `just verify` on each pushed sha in a throwaway worktree, so a dirty working tree
+#    neither hides a failure nor causes one. That verify runs the *pushed* commit's own
+#    justfile, so it too is a convenience check, not a guarantee.
+set -eu
+
+GATE=".githooks/pre-commit .githooks/commit-msg .githooks/pre-push
+harness/guard-gate.sh harness/gate.sh justfile .claude/settings.json"
+for h in $GATE; do
+  want=$(git rev-parse "HEAD:$h" 2>/dev/null) ||
+    { echo "pre-push: $h is not tracked at HEAD — gate was tampered with"; exit 1; }
+  [ "$(git hash-object "$h" 2>/dev/null || true)" = "$want" ] ||
+    { echo "pre-push: $h differs from HEAD — commit it; never push around a modified gate"; exit 1; }
+  case "$h" in
+    .githooks/*|*.sh) [ -x "$h" ] ||
+      { echo "pre-push: $h is not executable — gate was tampered with"; exit 1; };;
+  esac
+done
+[ "$(git config core.hooksPath || true)" = ".githooks" ] ||
+  { echo "pre-push: core.hooksPath != .githooks — run: just sync"; exit 1; }
+for t in just uv; do
+  command -v "$t" >/dev/null 2>&1 || { echo "pre-push: $t not found — run: just sync"; exit 1; }
+done
+
+# One worktree at a time, torn down on every exit path (failure, ^C, verify blowing up).
+wt=""
+cleanup() {
+  [ -n "$wt" ] || return 0
+  git worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
+  wt=""
+}
+trap cleanup EXIT HUP INT TERM
+
+zero=0000000000000000000000000000000000000000
+seen=""
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue          # ref deletion: nothing to verify
+  case " $seen " in *" $local_sha "*) continue;; esac  # `--follow-tags`: same sha twice
+  seen="$seen $local_sha"
+  wt=$(mktemp -d)
+  git worktree add --detach -q "$wt" "$local_sha"
+  echo "pre-push: just verify @ $(git rev-parse --short "$local_sha")"
+  # If the caller's environment carries GIT_* vars they point at the main worktree, which
+  # would make every git call inside the temp worktree read the wrong repo.
+  (
+    unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_OBJECT_DIRECTORY
+    cd "$wt" && just verify
+  ) </dev/null || { echo "pre-push: verify failed for $local_sha"; exit 1; }
+  cleanup
+done
+exit 0

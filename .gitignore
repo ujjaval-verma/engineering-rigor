@@ -1,0 +1,11 @@
+docs/superpowers/
+.superpowers/
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.pyright_cache/
+.coverage
+out/
+work/

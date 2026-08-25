@@ -1,0 +1,5 @@
+#!/bin/sh
+# `just check` reads the working tree, not the index, so a partially-staged commit is not
+# checked in the form it is committed. Stage whole files; pre-push re-checks the snapshot.
+command -v just >/dev/null 2>&1 || { echo "pre-commit: just not found — uv tool install rust-just"; exit 1; }
+exec just check </dev/null
