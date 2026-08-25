@@ -120,6 +120,7 @@ the trigger that would change it, is in [`docs/tooling.md`](docs/tooling.md).
 
 [`CLAUDE.md`](CLAUDE.md) gate rules + invariants · [`AGENTS.md`](AGENTS.md) model policy + slice
 delivery · [`docs/tooling.md`](docs/tooling.md) every pick with its why ·
-[`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) the only legal home for deferred work.
+[`docs/FOLLOWUPS.md`](docs/FOLLOWUPS.md) the only legal home for deferred work ·
+[`CONTRIBUTING.md`](CONTRIBUTING.md) how to change any of it.
 
 MIT — see [`LICENSE`](LICENSE).
